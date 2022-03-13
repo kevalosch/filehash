@@ -1,0 +1,164 @@
+---
+title: "Coursera Reproducible Research Assignment"
+output: html_document
+---
+
+## Step1
+-Loading and preprocessing the data
+
+## Step2 
+
+- confirm that the imported data is indeed a dataframe
+- add weekdays to the dataframe
+- create weekday column
+- create table to identify the counts per weekday
+- create grouped values
+
+
+```{r}
+library(ggplot2)
+library(zoo)
+library(dplyr)
+library(tidyverse)
+
+
+readfile <- read.csv("activity.csv", header = TRUE, sep = ',', colClasses = c("numeric", "character", "integer"))
+readfile$date <- as.Date(readfile$date)
+readfile$weekdays <- weekdays(readfile$date)
+head(readfile)
+weekdays_count <- table(readfile$weekdays)
+head(weekdays_count)
+weekdays_count <- as.data.frame(weekdays_count)
+```
+
+## Step3
+- What is mean total number of steps taken per day? +
+- What is the average daily activity pattern?
+- In the following histogramm we can see the total number of steps per day - accomplished via application of group_by and summarise functions.
+- we also verify that the TotalSteps column has the class "integer"
+- Below that we will find the median and the mean per day aswell as the mean and median for the entire column.
+- Now, we will join the 3 new dataframes created previously in order to be able to access all variables more easily.
+- We will also group the variables by interval now instead of dates and create an interactive plot using plotly
+- The 835 Intervall has the highest value (206,17)
+
+```{r}
+totalstepsperday <- as.data.frame(readfile) %>% group_by(date) %>%  summarise(TotalSteps = sum(steps,na.rm = TRUE))
+
+hist(totalstepsperday$TotalSteps)
+
+head(totalstepsperday)
+
+meantotalsteps <- mean(totalstepsperday$TotalSteps)
+
+meantotalsteps
+
+mediantotalsteps <- median(totalstepsperday$TotalSteps)
+
+mediantotalsteps
+
+totalstepsperdayMEAN <- readfile %>%  group_by(date) %>% summarise(TotalSteps = mean(steps,na.rm = TRUE))
+
+  
+totalstepsperdayMEDIAN <- readfile %>%   group_by(date) %>%  summarise(TotalSteps = median(steps,na.rm = TRUE))
+
+
+combined_Data_frame <- right_join(totalstepsperdayMEAN,totalstepsperday, by=c("date"))
+
+combined_Data_frame <- right_join(combined_Data_frame,totalstepsperdayMEDIAN, by=c("date"))
+
+stepsperinterval <- readfile %>%  group_by(interval) %>%  summarise(MEAN_Steps = mean(steps,na.rm = TRUE))
+
+max(stepsperinterval$MEAN_Steps,na.rm = TRUE)
+  
+stepsintervalplot <- ggplot(stepsperinterval, aes(x=interval, y    =MEAN_Steps)) + geom_line(color = "darkmagenta")
+
+stepsintervalplot
+
+```
+
+
+## Step4
+
+1) Calculate and report the total number of missing values
+
+
+2) Devise a strategy for filling in all of the missing values in the dataset
+
+I replaced all NAs with the average (for the entire dataset)
+
+
+Probleme:
+
+
+```{r}
+NAcount <- sum(is.na(readfile))
+NAcount
+
+```
+
+```{r}
+
+plot<- ggplot(weekdays_count, aes(factor(Var1), Freq, fill = Var1)) +  geom_col(position = 'dodge')
+
+readfileNAimputed <- as.data.frame(readfile)
+
+readfileNAimputed$steps[is.na(readfileNAimputed$steps)] <- mean(readfileNAimputed$steps,na.rm=TRUE)
+
+
+stepsperintervalbyday <- as.data.frame(readfile) %>% group_by(date) %>%  summarise(meansteps = mean(steps,na.rm = TRUE))
+stepsperintervalbyday <- as.data.frame(stepsperintervalbyday)
+stepsperintervalimputed <- readfileNAimputed %>%  group_by(date) %>%  summarise(meansteps = mean(steps,na.rm = TRUE))
+ 
+hist(stepsperintervalbyday$meansteps,breaks=61)
+
+hist(stepsperintervalimputed$meansteps,breaks=61)
+
+data_full <- readfile
+
+nas <- is.na(data_full$steps)
+
+avg_interval <- tapply (data_full$steps, data_full$interval, mean, na.rm=TRUE, simplify=TRUE)
+
+data_full$steps[nas] <- avg_interval[as.character(data_full$interval[nas])]
+
+
+sum(is.na(data_full$steps)) ## [1] 0
+
+steps_full <- data_full %>% filter(!is.na(steps)) %>%   group_by(date) %>%  summarize(steps = sum(steps))
+
+auxplot <- ggplot(steps_full, aes(x = steps)) + geom_histogram(fill = "firebrick", binwidth = 1000) + labs(title = "Histogram of Steps per day, including missing values", x ="Steps per day", y = "Frequency")
+
+
+steps_full$steps <- as.numeric(steps_full$steps)
+
+mean_steps_full <- mean(steps_full$steps,na.rm=TRUE)
+
+medianstepsfull <- median(steps_full$steps, na.rm = TRUE)
+
+mean_steps_full
+
+medianstepsfull
+
+```
+
+## Step5
+- Are there differences in activity patterns between weekdays and weekends?
+- Yes, the person starts earlier on weekdays but does more during the weekend.
+- A guess would be that the person works in an office and therefore does less steps when he works.
+
+
+```{r}
+
+data_full <- mutate(data_full, weektype = ifelse(weekdays(data_full$date) == "Samstag" | weekdays(data_full$date) == "Sonntag", "weekend", "weekday"))
+
+data_full$weektype <- as.factor(data_full$weektype)
+
+interval_full <- data_full %>% group_by(interval, weektype) %>% summarise(steps = mean(steps))
+
+ggplot(interval_full, aes(x=interval, y=steps, color = weektype)) + geom_line() + facet_wrap(~weektype, ncol = 1, nrow=2)
+
+
+```
+
+
+
